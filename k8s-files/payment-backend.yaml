@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: pc-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxUnavailable: 1
+      maxSurge: 1    
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In 
+                values:
+                  - payment-service
+            topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: payment-cont
+          image: chillmadiguys/payment-service:v1.1.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+
+          envFrom:
+            - configMapRef:
+                name: pc-config-global
+            - secretRef:
+                name: pc-secrets-global
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          #   timeoutSeconds: 2
+          #   failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            # timeoutSeconds: 2
+            # failureThreshold: 3
+            
+        
+ 
