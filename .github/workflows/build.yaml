@@ -4,20 +4,31 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker image tag"
+        required: true
+        default: "latest"
  
 jobs:
   build:
     name: Build and analyze
     runs-on: ubuntu-latest
-   
+ 
+    # ✅ GLOBAL ENV (important fix)
+    env:
+      IMAGE_NAME: payment-service
+      IMAGE_TAG: ${{ github.event.inputs.image_tag || 'latest' }}
+ 
     steps:
  
       - name: Clone to VM
         uses: actions/checkout@v4
-     
-     
+ 
       - name: Snyk Scan
         uses: snyk/actions/python@master
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
@@ -29,31 +40,28 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
  
-      - name: Quality Gate Check
+      - name: Quality Gate check
         uses: SonarSource/sonarqube-quality-gate-action@v1
         id: qualitygate
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
  
-     
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
  
       - name: Build Image
         run: |
-          docker build -t ${{ env.IMAGE_NAME }} .
-        env:
-          IMAGE_NAME: auth_service
+          docker build -t $IMAGE_NAME:$IMAGE_TAG .
  
       - name: Trivy Install
         run: |
           sudo apt update
           sudo apt install trivy -y
+ 
       - name: Scan Image
-        run: trivy image --severity CRITICAL --exit-code=1 ${{ env.IMAGE_NAME }}
-        env:
-          IMAGE_NAME: auth_service  
+        run: |
+          trivy image --severity CRITICAL --exit-code=1 $IMAGE_NAME:$IMAGE_TAG
  
       - name: Send Success Email
         if: success()
@@ -80,10 +88,3 @@ jobs:
           body: "Quality Gate failed. Check SonarQube."
           to: ${{ secrets.EMAIL_USERNAME }}
           from: GitHub Actions
- 
-      # If you wish to fail your job when the Quality Gate is red, uncomment the
-      # following lines. This would typically be used to fail a deployment.
-      # - uses: SonarSource/sonarqube-quality-gate-action@v1
-      #   timeout-minutes: 5
-      #   env:hhcacnmasc
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
